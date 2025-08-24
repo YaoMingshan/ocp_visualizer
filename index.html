@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCP数据类型二进制格式展示</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>OCP数据类型二进制格式</h1>
+            <p>Open Compute Project Microscaling Formats (MX) 二进制表示</p>
+        </header>
+        
+        <div class="format-section" id="mxfp8">
+            <h2>MXFP8 格式 (E4M3)</h2>
+            <div class="bit-container">
+                <div class="bit-row">
+                    <div class="bit-label">位位置</div>
+                    <div class="bit" data-index="7">7</div>
+                    <div class="bit" data-index="6">6</div>
+                    <div class="bit" data-index="5">5</div>
+                    <div class="bit" data-index="4">4</div>
+                    <div class="bit" data-index="3">3</div>
+                    <div class="bit" data-index="2">2</div>
+                    <div class="bit" data-index="1">1</div>
+                    <div class="bit" data-index="0">0</div>
+                </div>
+                <div class="bit-row">
+                    <div class="bit-label">位值</div>
+                    <div class="bit-value" data-index="7">0</div>
+                    <div class="bit-value" data-index="6">1</div>
+                    <div class="bit-value" data-index="5">0</div>
+                    <div class="bit-value" data-index="4">0</div>
+                    <div class="bit-value" data-index="3">1</div>
+                    <div class="bit-value" data-index="2">0</div>
+                    <div class="bit-value" data-index="1">0</div>
+                    <div class="bit-value" data-index="0">0</div>
+                </div>
+                <div class="legend">
+                    <span class="legend-sign">符号位</span>
+                    <span class="legend-exponent">指数部分</span>
+                    <span class="legend-mantissa">尾数部分</span>
+                </div>
+            </div>
+            <div class="calculation">
+                <p>二进制: <span class="binary-value">01001000</span></p>
+                <p>十六进制: <span class="hex-value">0x48</span></p>
+                <p>计算值: <span class="calculated-value">1 × 2² × 1.25 = 5.0</span></p>
+            </div>
+        </div>
+
+        <!-- 其他OCP格式部分（MXFP6、MXFP4、MXINT8）结构类似 -->
+        
+        <div class="controls">
+            <button id="random-btn">生成随机值</button>
+            <button id="custom-btn">输入自定义二进制</button>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
