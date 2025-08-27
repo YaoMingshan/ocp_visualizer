@@ -1,82 +1,519 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCP数据类型二进制格式展示</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Floating-Point Format Visualizer</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 850px;
+        }
+        h1 {
+            text-align: center;
+            color: #111;
+            margin-top: 0;
+        }
+        p.intro {
+            text-align: center;
+            color: #666;
+            margin-bottom: 25px;
+        }
+        .control-panel {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
+            gap: 10px;
+        }
+        label {
+            font-weight: 500;
+        }
+        select {
+            padding: 8px 12px;
+            font-size: 16px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        .visualizer {
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 20px;
+        }
+        h2 {
+            margin-top: 0;
+            text-align: center;
+            color: #333;
+        }
+        .input-group {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .input-group input {
+            width: 100%;
+            padding: 8px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-family: monospace;
+        }
+        .bits-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        .bit {
+            width: 28px;
+            height: 35px;
+            border: 1px solid #aaa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: monospace;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            background-color: #f9f9f9;
+            transition: all 0.1s ease-in-out;
+        }
+        .bit:hover {
+            border-color: #000;
+            transform: scale(1.05);
+        }
+        .bit::after {
+            content: attr(data-index);
+            position: absolute;
+            top: -18px;
+            font-size: 10px;
+            color: #888;
+        }
+        .bit.sign { background-color: #dbeafe; border-color: #93c5fd; }
+        .bit.exponent { background-color: #dcfce7; border-color: #86efac; }
+        .bit.mantissa { background-color: #fee2e2; border-color: #fca5a5; }
+
+        /* Styles for larger formats like FP32 */
+        .large-format .bit {
+             width: 21px;
+             height: 30px;
+             font-size: 16px;
+        }
+        .large-format .bit::after {
+            font-size: 9px;
+            top: -15px;
+        }
+
+        .calculation {
+            font-family: monospace;
+            font-size: 1.3em;
+            text-align: center;
+            padding: 15px;
+            background-color: #fafafa;
+            border-radius: 5px;
+            border: 1px solid #eee;
+            word-wrap: break-word;
+        }
+        .calc-sign { color: #2563eb; font-weight: bold; }
+        .calc-exp { color: #16a34a; font-weight: bold; }
+        .calc-man { color: #dc2626; font-weight: bold; }
+        .calc-result { color: #000; font-weight: bold; }
+        .special-value {
+            font-weight: bold;
+            color: #d946ef;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>OCP数据类型二进制格式</h1>
-            <p class="subtitle">Open Compute Project Microscaling Formats (MX) 二进制表示</p>
-        </header>
-        
-        <div class="format-selector">
-            <button class="format-btn active" data-format="mxfp8">MXFP8</button>
-            <button class="format-btn" data-format="mxfp6">MXFP6</button>
-            <button class="format-btn" data-format="mxfp4">MXFP4</button>
-            <button class="format-btn" data-format="mxint8">MXINT8</button>
-        </div>
-        
-        <div class="format-section" id="mxfp8">
-            <h2>MXFP8 格式 (E4M3)</h2>
-            
-            <div class="bit-container">
-                <div class="bit-row">
-                    <div class="bit-label">位位置</div>
-                    <div class="bit" data-index="7">7</div>
-                    <div class="bit" data-index="6">6</div>
-                    <div class="bit" data-index="5">5</div>
-                    <div class="bit" data-index="4">4</div>
-                    <div class="bit" data-index="3">3</div>
-                    <div class="bit" data-index="2">2</div>
-                    <div class="bit" data-index="1">1</div>
-                    <div class="bit" data-index="0">0</div>
-                </div>
-                <div class="bit-row">
-                    <div class="bit-label">位值</div>
-                    <div class="bit-value" data-index="7">0</div>
-                    <div class="bit-value" data-index="6">1</div>
-                    <div class="bit-value" data-index="5">0</div>
-                    <div class="bit-value" data-index="4">0</div>
-                    <div class="bit-value" data-index="3">1</div>
-                    <div class="bit-value" data-index="2">0</div>
-                    <div class="bit-value" data-index="1">0</div>
-                    <div class="bit-value" data-index="0">0</div>
-                </div>
-                <div class="legend">
-                    <span class="legend-sign">符号位</span>
-                    <span class="legend-exponent">指数部分</span>
-                    <span class="legend-mantissa">尾数部分</span>
-                </div>
-            </div>
-            
-            <div class="calculation">
-                <p>二进制: <span class="binary-value">01001000</span></p>
-                <p>十六进制: <span class="hex-value">0x48</span></p>
-                <p>计算值: <span class="calculated-value">1 × 2² × 1.25 = 5.0</span></p>
-            </div>
-            
-            <div class="format-description">
-                <p><strong>MXFP8格式说明：</strong> 8位浮点格式，使用E4M3编码（4位指数，3位尾数）。符号位表示正负，指数部分采用偏移表示法，尾数部分使用隐含的最高位1。</p>
-            </div>
-        </div>
-        
-        <div class="input-section">
-            <h2>自定义输入</h2>
-            <div class="input-group">
-                <label for="custom-bits">输入二进制值：</label>
-                <input type="text" id="custom-bits" placeholder="例如：01001000" maxlength="8">
-            </div>
-            <div class="controls">
-                <button class="btn" id="apply-btn">应用输入</button>
-                <button class="btn btn-secondary" id="random-btn">生成随机值</button>
-            </div>
-        </div>
+
+<div class="container">
+    <h1>Floating-Point Format Visualizer</h1>
+    <p class="intro">An interactive tool to understand standard and AI low-precision floating-point formats.</p>
+
+    <div class="control-panel">
+        <label for="format-selector">Select Format:</label>
+        <select id="format-selector">
+            <option value="fp32">FP32 (Float)</option>
+            <option value="bf16">BF16 (BFloat16)</option>
+            <option value="fp16">FP16 (Half)</option>
+            <option value="fp8e5m2">FP8 (E5M2)</option>
+            <option value="fp8e4m3">FP8 (E4M3)</option>
+            <option value="fp6e3m2">FP6 (E3M2)</option>
+            <option value="fp6e2m3">FP6 (E2M3)</option>
+            <option value="fp4e2m1">FP4 (E2M1)</option>
+            <option value="e8m0">E8M0 (Scale)</option>
+        </select>
     </div>
+
+    <div id="visualizer-container"></div>
+</div>
+
+<script>
+const FORMATS = {
+    fp32:    { name: 'FP32 (Float)', total: 32, exp: 8, man: 23, bias: 127, hasSign: true },
+    bf16:    { name: 'BF16 (BFloat16)', total: 16, exp: 8, man: 7, bias: 127, hasSign: true },
+    fp16:    { name: 'FP16 (Half)', total: 16, exp: 5, man: 10, bias: 15, hasSign: true },
+    fp8e5m2: { name: 'FP8 (E5M2)', total: 8, exp: 5, man: 2, bias: 15, hasSign: true },
+    fp8e4m3: { name: 'FP8 (E4M3)', total: 8, exp: 4, man: 3, bias: 7, hasSign: true },
+    fp6e3m2: { name: 'FP6 (E3M2)', total: 6, exp: 3, man: 2, bias: 3, hasSign: true },
+    fp6e2m3: { name: 'FP6 (E2M3)', total: 6, exp: 2, man: 3, bias: 1, hasSign: true },
+    fp4e2m1: { name: 'FP4 (E2M1)', total: 4, exp: 2, man: 1, bias: 1, hasSign: true },
+    e8m0:    { name: 'E8M0 (Scale)', total: 8, exp: 8, man: 0, bias: 127, hasSign: false },
+};
+
+const visualizerContainer = document.getElementById('visualizer-container');
+const formatSelector = document.getElementById('format-selector');
+
+let currentFormat = FORMATS[formatSelector.value];
+// Use a buffer for 64-bit float representation to handle conversions
+const buffer = new ArrayBuffer(8);
+const float64View = new Float64Array(buffer);
+const uint32View = new Uint32Array(buffer);
+
+function renderVisualizer() {
+    currentFormat = FORMATS[formatSelector.value];
     
-    <script src="script.js"></script>
+    visualizerContainer.innerHTML = `
+        <div class="visualizer">
+            <h2>${currentFormat.name}</h2>
+            <div class="input-group">
+                <label for="decimal-input">Decimal Value:</label>
+                <input type="text" id="decimal-input" value="1.25">
+            </div>
+            <div class="bits-container" id="bits-container"></div>
+            <div class="input-group">
+                <label for="hex-input">Hex:</label>
+                <input type="text" id="hex-input" maxlength="${Math.ceil(currentFormat.total / 4)}">
+            </div>
+            <div class="calculation" id="calculation"></div>
+        </div>
+    `;
+
+    const visualizerDiv = visualizerContainer.querySelector('.visualizer');
+    if (currentFormat.total > 16) {
+        visualizerDiv.classList.add('large-format');
+    }
+
+    const bitsContainer = document.getElementById('bits-container');
+    for (let i = 0; i < currentFormat.total; i++) {
+        const bit = document.createElement('div');
+        bit.classList.add('bit');
+        const bitIndex = currentFormat.total - 1 - i;
+        bit.dataset.index = bitIndex;
+
+        if (currentFormat.hasSign && i === 0) {
+            bit.classList.add('sign');
+        } else if (i < (currentFormat.hasSign ? 1 : 0) + currentFormat.exp) {
+            bit.classList.add('exponent');
+        } else {
+            bit.classList.add('mantissa');
+        }
+        
+        bit.textContent = '0';
+        bit.addEventListener('click', handleBitClick);
+        bitsContainer.appendChild(bit);
+    }
+
+    // --- MODIFICATION START ---
+    // Change how event listeners are attached
+    const decimalInput = document.getElementById('decimal-input');
+    const hexInput = document.getElementById('hex-input');
+
+    const setupInputListeners = (inputElement, handlerFunction) => {
+        // Trigger on pressing 'Enter'
+        inputElement.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // Prevent potential form submission
+                handlerFunction(e);
+                inputElement.blur(); // Optional: remove focus after enter
+            }
+        });
+        // Trigger on losing focus
+        inputElement.addEventListener('blur', handlerFunction);
+    };
+
+    setupInputListeners(decimalInput, handleDecimalInput);
+    setupInputListeners(hexInput, handleHexInput);
+    // --- MODIFICATION END ---
+
+
+    updateFromValue(1.25);
+}
+
+function handleDecimalInput(e) {
+    const valueStr = e.target.value.trim();
+    if (valueStr.toLowerCase() === 'inf' || valueStr.toLowerCase() === 'infinity') {
+        updateFromValue(Infinity);
+        return;
+    }
+    if (valueStr.toLowerCase() === '-inf' || valueStr.toLowerCase() === '-infinity') {
+        updateFromValue(-Infinity);
+        return;
+    }
+    const value = parseFloat(valueStr);
+    if (!isNaN(value) || valueStr === "-0") {
+        updateFromValue(valueStr === "-0" ? -0 : value);
+    } else {
+        // If input is invalid, maybe revert to a default or show an error
+        updateFromValue(1.25); // Revert to default on invalid input
+    }
+}
+
+
+function handleHexInput(e) {
+    const hex = e.target.value.trim() || '0';
+    const totalBits = currentFormat.total;
+    const maxHexLength = Math.ceil(totalBits / 4);
+    if (hex.length > maxHexLength) return;
+
+    if (/^[0-9a-fA-F]*$/.test(hex)) {
+        let binary = (BigInt('0x' + hex)).toString(2).padStart(totalBits, '0');
+        if (binary.length > totalBits) binary = binary.slice(-totalBits);
+        updateFromBits(binary);
+    }
+}
+
+function handleBitClick(e) {
+    const bitDiv = e.target;
+    bitDiv.textContent = bitDiv.textContent === '0' ? '1' : '0';
+    const bits = Array.from(document.querySelectorAll('.bit')).map(b => b.textContent).join('');
+    updateFromBits(bits);
+}
+
+function updateFromValue(value) {
+    const bits = valueToBits(value, currentFormat);
+    updateDisplay(bits);
+}
+
+function updateFromBits(bits) {
+    updateDisplay(bits);
+}
+
+function updateDisplay(bits) {
+    const bitDivs = document.querySelectorAll('.bit');
+    for (let i = 0; i < bits.length; i++) {
+        if (bitDivs[i]) {
+            bitDivs[i].textContent = bits[i];
+        }
+    }
+
+    const { value, calculationHtml } = bitsToValue(bits, currentFormat);
+    
+    const decimalInput = document.getElementById('decimal-input');
+    let displayStr = "";
+     if (isNaN(value)) displayStr = "NaN";
+     else if (value === Infinity) displayStr = "Infinity";
+     else if (value === -Infinity) displayStr = "-Infinity";
+     else if (Object.is(value, -0)) displayStr = "-0";
+     else displayStr = value.toString();
+
+    // Only update if the text content is different, to avoid losing cursor position unnecessarily
+    if (decimalInput.value !== displayStr) {
+        decimalInput.value = displayStr;
+    }
+
+
+    document.getElementById('calculation').innerHTML = calculationHtml;
+
+    const hexValue = (BigInt('0b' + bits)).toString(16).toUpperCase().padStart(Math.ceil(currentFormat.total / 4), '0');
+    const hexInput = document.getElementById('hex-input');
+    if (hexInput.value.toUpperCase() !== hexValue) {
+        hexInput.value = hexValue;
+    }
+}
+
+
+function valueToBits(value, format) {
+    const { total, exp, man, bias, hasSign } = format;
+
+    // Use a 64-bit float view to get the binary representation of the input number
+    float64View[0] = value;
+    const high = uint32View[1];
+    const low = uint32View[0];
+    
+    const signBit64 = (high >> 31) & 1;
+    let signBit = signBit64.toString();
+
+    if (!hasSign) signBit = '';
+
+    if (isNaN(value)) {
+        let manBits = '1' + '0'.repeat(man - 1);
+        if (man === 0) manBits = '';
+        return signBit + '1'.repeat(exp) + manBits;
+    }
+    if (value === Infinity || value === -Infinity) {
+        return signBit + '1'.repeat(exp) + '0'.repeat(man);
+    }
+    if (value === 0) {
+        return signBit.padEnd(total, '0');
+    }
+
+    const exp64 = (high >> 20) & 0x7FF;
+    const manHigh64 = high & 0xFFFFF;
+    
+    if (exp64 === 0) { // Subnormal in 64-bit, becomes 0 in smaller formats
+        return signBit.padEnd(total, '0');
+    }
+    if (exp64 === 0x7FF) { // Inf/NaN already handled, but for safety
+      return valueToBits(signBit64 ? -Infinity : Infinity, format);
+    }
+
+    let actualExp = exp64 - 1023; // Bias of float64
+    let biasedExp = actualExp + bias;
+
+    // Handle overflow
+    const maxExp = (1 << exp) - 1;
+    if (biasedExp >= maxExp) {
+        return valueToBits(signBit64 ? -Infinity : Infinity, format);
+    }
+    
+    let man64 = (BigInt(manHigh64) << 32n) | BigInt(low);
+
+    if (biasedExp <= 0) { // Becomes subnormal or zero in target format
+        let shift = 1 - biasedExp;
+        if (shift > 53 + man) return signBit.padEnd(total, '0'); // Underflow to zero
+        
+        let subnormalMan = (1n << 52n) | man64;
+        
+        // Add rounding logic (round to nearest, ties to even)
+        let rounder = 1n << BigInt(shift - 1);
+        subnormalMan += rounder;
+
+        let manBits = (subnormalMan >> BigInt(shift)).toString(2).padStart(53, '0').slice(53-man);
+        
+        return signBit + '0'.repeat(exp) + manBits;
+    }
+
+    // Normal number
+    let expBits = biasedExp.toString(2).padStart(exp, '0');
+    
+    // Rounding
+    const roundingShift = BigInt(52-man);
+    let manBitsBigInt = (man64 + (1n << (roundingShift - 1n))) >> roundingShift;
+    
+    // Check for overflow from rounding
+    if (manBitsBigInt >= (1n << BigInt(man))) {
+        manBitsBigInt = 0n; // Mantissa becomes zero
+        biasedExp++; // Exponent increments
+        if (biasedExp >= maxExp) {
+             return valueToBits(signBit64 ? -Infinity : Infinity, format);
+        }
+        expBits = biasedExp.toString(2).padStart(exp, '0');
+    }
+
+    let manBits = manBitsBigInt.toString(2).padStart(man, '0');
+
+    return signBit + expBits + manBits;
+}
+
+function bitsToValue(bits, format) {
+    const { exp, man, bias, hasSign } = format;
+    const signOffset = hasSign ? 1 : 0;
+
+    const signBit = hasSign ? bits[0] : '0';
+    const expBits = bits.substring(signOffset, signOffset + exp);
+    const manBits = bits.substring(signOffset + exp);
+
+    const sign = signBit === '1' ? -1 : 1;
+    const expInt = parseInt(expBits, 2);
+    
+    const isExpAllOnes = expBits.split('').every(b => b === '1');
+    const isExpAllZeros = expBits.split('').every(b => b === '0');
+    const isManAllZeros = manBits.length === 0 || BigInt('0b' + manBits) === 0n;
+
+    // Special cases
+    if (isExpAllOnes) {
+        if (isManAllZeros) {
+            if (!hasSign || format.name === 'FP8 (E4M3)') {
+                 return { value: NaN, calculationHtml: `<span class="special-value">NaN (Reserved Pattern)</span>` };
+            }
+            const val = sign === 1 ? Infinity : -Infinity;
+            return { value: val, calculationHtml: `<span class="special-value">${val}</span>` };
+        } else {
+            return { value: NaN, calculationHtml: `<span class="special-value">NaN</span>` };
+        }
+    }
+    
+    if (format.name === 'E8M0') {
+         if (isExpAllOnes) {
+            return { value: NaN, calculationHtml: `<span class="special-value">NaN</span>` };
+        }
+        const actualExp = expInt - bias;
+        const value = Math.pow(2, actualExp);
+        return {
+            value: value,
+            calculationHtml: `2<sup class="calc-exp">${actualExp}</sup> = <span class="calc-result">${value}</span>`
+        };
+    }
+    
+    let mantissa = 0;
+    if (man > 0) {
+      mantissa = Number(BigInt('0b' + manBits)) / (2 ** man);
+    }
+    
+    if (isExpAllZeros) { // Subnormal or zero
+        if (isManAllZeros) {
+            const val = sign === 1 ? 0 : -0;
+            return { value: val, calculationHtml: `<span class="special-value">${Object.is(val, -0) ? "-0" : "0"}</span>` };
+        } else { // Subnormal
+            const actualExp = 1 - bias;
+            const value = sign * (2 ** actualExp) * mantissa;
+            return {
+                value: value,
+                calculationHtml: `
+                    <span class="calc-sign">${sign === -1 ? '-1' : '1'}</span> &times; 
+                    2<sup class="calc-exp">${actualExp}</sup> &times; 
+                    <span class="calc-man">(0 + ${mantissa.toPrecision(Math.min(man, 4))})</span> = 
+                    <span class="calc-result">${value.toExponential(Math.min(man, 6))}</span>
+                    <br><span class="special-value">(Subnormal)</span>`
+            };
+        }
+    }
+
+    // Normal number
+    const actualExp = expInt - bias;
+    const fullMantissa = 1 + mantissa;
+    const value = sign * (2 ** actualExp) * fullMantissa;
+    let displayValue = value.toString();
+    if (Math.abs(value) > 1e6 || (Math.abs(value) < 1e-4 && value !== 0)) {
+       displayValue = value.toExponential(Math.min(man, 7));
+    } else if (man > 6) {
+       displayValue = value.toPrecision(man + 1);
+    }
+    
+    return {
+        value: value,
+        calculationHtml: `
+            <span class="calc-sign">${sign === -1 ? '-1' : '1'}</span> &times; 
+            2<sup class="calc-exp">${actualExp}</sup> &times; 
+            <span class="calc-man">${fullMantissa.toPrecision(Math.min(man + 1, 8))}</span> = 
+            <span class="calc-result">${displayValue}</span>`
+    };
+}
+
+
+formatSelector.addEventListener('change', renderVisualizer);
+document.addEventListener('DOMContentLoaded', renderVisualizer);
+
+</script>
 </body>
 </html>
