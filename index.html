@@ -343,170 +343,149 @@ function updateDisplay(bits) {
 
 
 function valueToBits(value, format) {
-    const { total, exp, man, bias, hasSign } = format;
+    const { total, exp, man, bias, hasSign, name } = format;
 
-    // Use a 64-bit float view to get the binary representation of the input number
-    float64View[0] = value;
-    const high = uint32View[1];
-    const low = uint32View[0];
-    
-    const signBit64 = (high >> 31) & 1;
-    let signBit = signBit64.toString();
-
-    if (!hasSign) signBit = '';
-
-    if (isNaN(value)) {
-        let manBits = '1' + '0'.repeat(man - 1);
-        if (man === 0) manBits = '';
-        return signBit + '1'.repeat(exp) + manBits;
+    // ---------- E8M0 ----------
+    if (name === 'E8M0 (Scale)') {
+        if (isNaN(value)) return "11111111"; // 单一 NaN
+        if (value === 0) return "11111111";  // 没有 Zero → 编码为 NaN
+        let exponent = Math.round(Math.log2(value));
+        let encoded = exponent + bias;
+        if (encoded < 0 || encoded > 254) return "11111111"; // 超界 → NaN
+        return encoded.toString(2).padStart(8, '0');
     }
-    if (value === Infinity || value === -Infinity) {
-        return signBit + '1'.repeat(exp) + '0'.repeat(man);
+
+    // ---------- Sign ----------
+    let signBit = "";
+    if (hasSign) {
+        if (Object.is(value, -0) || value < 0) {
+            signBit = "1";
+            value = -value;
+        } else {
+            signBit = "0";
+        }
+    }
+
+    // ---------- Specials ----------
+    if (isNaN(value)) {
+        if (name.includes("E4M3")) return signBit + "1111111";     // FP8 E4M3
+        if (name.includes("E5M2")) return signBit + "1111101";     // FP8 E5M2 NaN
+        if (name.includes("FP4"))  return signBit + "1111";        // FP4 实现可定义 NaN
+    }
+    if (!isFinite(value)) {
+        if (name.includes("E5M2")) return signBit + "1111100";     // FP8 E5M2 Inf
+        // 对 FP4/FP6，没有 Inf → saturate
+        value = Number.MAX_VALUE;
     }
     if (value === 0) {
         return signBit.padEnd(total, '0');
     }
 
-    const exp64 = (high >> 20) & 0x7FF;
-    const manHigh64 = high & 0xFFFFF;
-    
-    if (exp64 === 0) { // Subnormal in 64-bit, becomes 0 in smaller formats
-        return signBit.padEnd(total, '0');
+    // ---------- Normal conversion ----------
+    let expVal = Math.floor(Math.log2(value));
+    let fraction = value / Math.pow(2, expVal);
+    if (fraction < 1) {
+        expVal -= 1;
+        fraction *= 2;
     }
-    if (exp64 === 0x7FF) { // Inf/NaN already handled, but for safety
-      return valueToBits(signBit64 ? -Infinity : Infinity, format);
-    }
+    let biasedExp = expVal + bias;
 
-    let actualExp = exp64 - 1023; // Bias of float64
-    let biasedExp = actualExp + bias;
-
-    // Handle overflow
-    const maxExp = (1 << exp) - 1;
-    if (biasedExp >= maxExp) {
-        return valueToBits(signBit64 ? -Infinity : Infinity, format);
-    }
-    
-    let man64 = (BigInt(manHigh64) << 32n) | BigInt(low);
-
-    if (biasedExp <= 0) { // Becomes subnormal or zero in target format
-        let shift = 1 - biasedExp;
-        if (shift > 53 + man) return signBit.padEnd(total, '0'); // Underflow to zero
-        
-        let subnormalMan = (1n << 52n) | man64;
-        
-        // Add rounding logic (round to nearest, ties to even)
-        let rounder = 1n << BigInt(shift - 1);
-        subnormalMan += rounder;
-
-        let manBits = (subnormalMan >> BigInt(shift)).toString(2).padStart(53, '0').slice(53-man);
-        
-        return signBit + '0'.repeat(exp) + manBits;
+    // Overflow → saturate
+    if (biasedExp >= (1 << exp) - 1) {
+        if (name.includes("E5M2")) return signBit + "1111100";  // Inf
+        biasedExp = (1 << exp) - 2;
+        fraction = 2 - Math.pow(2, -man); // Max mantissa
     }
 
-    // Normal number
-    let expBits = biasedExp.toString(2).padStart(exp, '0');
-    
-    // Rounding
-    const roundingShift = BigInt(52-man);
-    let manBitsBigInt = (man64 + (1n << (roundingShift - 1n))) >> roundingShift;
-    
-    // Check for overflow from rounding
-    if (manBitsBigInt >= (1n << BigInt(man))) {
-        manBitsBigInt = 0n; // Mantissa becomes zero
-        biasedExp++; // Exponent increments
-        if (biasedExp >= maxExp) {
-             return valueToBits(signBit64 ? -Infinity : Infinity, format);
+    if (biasedExp <= 0) {
+        // FP4/FP6 flush to zero
+        if (name.includes("FP4") || name.includes("FP6")) {
+            return signBit + "0".repeat(exp + man);
         }
-        expBits = biasedExp.toString(2).padStart(exp, '0');
+        // FP8 subnormal
+        let mantissaSub = Math.round(value / Math.pow(2, 1 - bias - man));
+        let manBitsSub = mantissaSub.toString(2).padStart(man, '0');
+        return signBit + "0".repeat(exp) + manBitsSub;
     }
 
-    let manBits = manBitsBigInt.toString(2).padStart(man, '0');
-
+    let mantissaInt = Math.round((fraction - 1) * Math.pow(2, man));
+    if (mantissaInt >= (1 << man)) {
+        mantissaInt = 0;
+        biasedExp++;
+    }
+    const expBits = biasedExp.toString(2).padStart(exp, "0");
+    const manBits = mantissaInt.toString(2).padStart(man, "0");
     return signBit + expBits + manBits;
 }
 
+
 function bitsToValue(bits, format) {
-    const { exp, man, bias, hasSign } = format;
-    const signOffset = hasSign ? 1 : 0;
+    const { exp, man, bias, hasSign, name } = format;
+    const signBit = hasSign ? bits[0] : "0";
+    const sign = signBit === "1" ? -1 : 1;
 
-    const signBit = hasSign ? bits[0] : '0';
-    const expBits = bits.substring(signOffset, signOffset + exp);
-    const manBits = bits.substring(signOffset + exp);
-
-    const sign = signBit === '1' ? -1 : 1;
-    const expInt = parseInt(expBits, 2);
-    
-    const isExpAllOnes = expBits.split('').every(b => b === '1');
-    const isExpAllZeros = expBits.split('').every(b => b === '0');
-    const isManAllZeros = manBits.length === 0 || BigInt('0b' + manBits) === 0n;
-
-    // Special cases
-    if (isExpAllOnes) {
-        if (isManAllZeros) {
-            if (!hasSign || format.name === 'FP8 (E4M3)') {
-                 return { value: NaN, calculationHtml: `<span class="special-value">NaN (Reserved Pattern)</span>` };
-            }
-            const val = sign === 1 ? Infinity : -Infinity;
-            return { value: val, calculationHtml: `<span class="special-value">${val}</span>` };
-        } else {
+    // ---------- E8M0 ----------
+    if (name === 'E8M0 (Scale)') {
+        if (bits === "11111111") {
             return { value: NaN, calculationHtml: `<span class="special-value">NaN</span>` };
         }
-    }
-    
-    if (format.name === 'E8M0') {
-         if (isExpAllOnes) {
-            return { value: NaN, calculationHtml: `<span class="special-value">NaN</span>` };
-        }
+        const expInt = parseInt(bits, 2);
         const actualExp = expInt - bias;
-        const value = Math.pow(2, actualExp);
+        const val = Math.pow(2, actualExp);
         return {
-            value: value,
-            calculationHtml: `2<sup class="calc-exp">${actualExp}</sup> = <span class="calc-result">${value}</span>`
+            value: val,
+            calculationHtml: `2<sup class="calc-exp">${actualExp}</sup> = <span class="calc-result">${val}</span>`
         };
     }
-    
-    let mantissa = 0;
-    if (man > 0) {
-      mantissa = Number(BigInt('0b' + manBits)) / (2 ** man);
-    }
-    
-    if (isExpAllZeros) { // Subnormal or zero
-        if (isManAllZeros) {
-            const val = sign === 1 ? 0 : -0;
-            return { value: val, calculationHtml: `<span class="special-value">${Object.is(val, -0) ? "-0" : "0"}</span>` };
-        } else { // Subnormal
-            const actualExp = 1 - bias;
-            const value = sign * (2 ** actualExp) * mantissa;
-            return {
-                value: value,
-                calculationHtml: `
-                    <span class="calc-sign">${sign === -1 ? '-1' : '1'}</span> &times; 
-                    2<sup class="calc-exp">${actualExp}</sup> &times; 
-                    <span class="calc-man">(0 + ${mantissa.toPrecision(Math.min(man, 4))})</span> = 
-                    <span class="calc-result">${value.toExponential(Math.min(man, 6))}</span>
-                    <br><span class="special-value">(Subnormal)</span>`
-            };
-        }
+
+    const expBits = bits.substring(hasSign ? 1 : 0, (hasSign ? 1 : 0) + exp);
+    const manBits = bits.substring((hasSign ? 1 : 0) + exp);
+    const expInt = parseInt(expBits, 2);
+    const manInt = manBits.length ? parseInt(manBits, 2) : 0;
+
+    // ---------- NaN ----------
+    if ((name.includes("E4M3") && expBits === "1111" && manBits === "111") ||
+        (name.includes("E5M2") && expBits === "11111" && manBits !== "00") ||
+        (name.includes("FP4")  && bits === "1111")) {
+        return { value: NaN, calculationHtml: `<span class="special-value">NaN</span>` };
     }
 
-    // Normal number
-    const actualExp = expInt - bias;
-    const fullMantissa = 1 + mantissa;
-    const value = sign * (2 ** actualExp) * fullMantissa;
-    let displayValue = value.toString();
-    if (Math.abs(value) > 1e6 || (Math.abs(value) < 1e-4 && value !== 0)) {
-       displayValue = value.toExponential(Math.min(man, 7));
-    } else if (man > 6) {
-       displayValue = value.toPrecision(man + 1);
+    // ---------- Inf ----------
+    if (name.includes("E5M2") && expBits === "11111" && manBits === "00") {
+        const v = sign * Infinity;
+        return { value: v, calculationHtml: `<span class="special-value">${v}</span>` };
     }
-    
+
+    // ---------- Zero ----------
+    if (expInt === 0 && manInt === 0) {
+        const v = sign < 0 ? -0 : 0;
+        return { value: v, calculationHtml: `<span class="special-value">${Object.is(v,-0)?"-0":"0"}</span>` };
+    }
+
+    // ---------- Normal/Subnormal ----------
+    let actualExp, mantissa;
+    if (expInt === 0) {
+        if (name.includes("FP4") || name.includes("FP6")) {
+            // flush to zero
+            const v = sign < 0 ? -0 : 0;
+            return { value: v, calculationHtml: `<span class="special-value">${Object.is(v,-0)?"-0":"0"}</span>` };
+        }
+        // subnormal (FP8)
+        mantissa = manInt / Math.pow(2, man);
+        actualExp = 1 - bias;
+    } else {
+        mantissa = 1 + manInt / Math.pow(2, man);
+        actualExp = expInt - bias;
+    }
+
+    const val = sign * mantissa * Math.pow(2, actualExp);
     return {
-        value: value,
+        value: val,
         calculationHtml: `
-            <span class="calc-sign">${sign === -1 ? '-1' : '1'}</span> &times; 
-            2<sup class="calc-exp">${actualExp}</sup> &times; 
-            <span class="calc-man">${fullMantissa.toPrecision(Math.min(man + 1, 8))}</span> = 
-            <span class="calc-result">${displayValue}</span>`
+            <span class="calc-sign">${sign === -1? "-1": "1"}</span> × 
+            2<sup class="calc-exp">${actualExp}</sup> × 
+            <span class="calc-man">${mantissa.toFixed(6)}</span> = 
+            <span class="calc-result">${val}</span>`
     };
 }
 
