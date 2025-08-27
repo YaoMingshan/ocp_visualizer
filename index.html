@@ -462,29 +462,32 @@ function valueToBitsSpecial(value, format) {
     let signBit = hasSign && (Object.is(value, -0) || value < 0) ? "1" : (hasSign ? "0" : "");
     if (hasSign && value < 0) value = -value;
 
-    // E8M0 (特殊)
+    // ---------- E8M0 ----------
     if (name === "E8M0 (Scale)") {
         if (isNaN(value)) return "11111111";
-        if (value === 0) return "11111111";
+        if (value === 0) return "11111111"; // 没有零编码 → 用NaN替代
         let exponent = Math.round(Math.log2(value));
         let encoded = exponent + bias;
         if (encoded < 0 || encoded > 254) return "11111111";
         return encoded.toString(2).padStart(8,"0");
     }
 
-    // -------- NaN / Inf rules --------
+    // ---------- NaN / Inf ----------
     if (isNaN(value)) {
-        if (name.includes("E5M2")) return signBit+"1111101"; // simple NaN pattern
-        if (name.includes("E4M3")) return signBit+"1111111"; 
-        if (name.includes("FP4"))  return signBit+"1111";   
+        if (name.includes("E5M2")) return signBit+"1111101";  // NaN
+        if (name.includes("E4M3")) return signBit+"1111111";  // NaN
+        // FP4 / FP6 没有 NaN → flush to zero
+        return signBit + "0".repeat(total- (hasSign?1:0));
     }
+
     if (!isFinite(value)) {
-        if (name.includes("E5M2")) return signBit+"1111100"; // Inf
-        value = Number.MAX_VALUE; // saturate for FP4/FP6
+        if (name.includes("E5M2")) return signBit+"1111100";  // +Inf/-Inf
+        // FP4 / FP6 没有 Inf → saturate
+        value = Number.MAX_VALUE;
     }
     if (value===0) return signBit.padEnd(total,"0");
 
-    // -------- Normal/Subnormal encoding --------
+    // ---------- Main normal encode ----------
     let expVal = Math.floor(Math.log2(value));
     let fraction = value / Math.pow(2, expVal);
     if (fraction < 1) { expVal--; fraction *= 2; }
@@ -493,13 +496,12 @@ function valueToBitsSpecial(value, format) {
     // Overflow saturate
     if (biasedExp >= (1<<exp)-1) {
         if (name.includes("E5M2")) return signBit+"1111100"; 
-        biasedExp = (1<<exp)-2;
+        biasedExp = (1<<exp)-2; // 撑最大 normal
         fraction = 2 - Math.pow(2,-man);
     }
 
-    // -------- Subnormal case --------
+    // Subnormal
     if (biasedExp <= 0) {
-        // subnormal：exp=0, mantissa = value / 2^(1-bias)
         let subMant = value / Math.pow(2,1-bias);
         let mantissaInt = Math.round(subMant * Math.pow(2,man));
         if (mantissaInt <= 0) 
@@ -508,7 +510,7 @@ function valueToBitsSpecial(value, format) {
         return signBit + "0".repeat(exp) + mantissaInt.toString(2).padStart(man,"0");
     }
 
-    // -------- Normal --------
+    // Normal
     let mantissaInt = Math.round((fraction-1)*Math.pow(2,man));
     if (mantissaInt >= (1<<man)) {
         mantissaInt=0;
@@ -524,7 +526,7 @@ function bitsToValueSpecial(bits, format) {
     const signBit = hasSign ? bits[0]:"0";
     const sign = signBit==="1"?-1:1;
 
-    // E8M0
+    // ---------- E8M0 ----------
     if (name==="E8M0 (Scale)") {
         if (bits==="11111111") return {value:NaN, calculationHtml:`NaN`};
         const expInt=parseInt(bits,2);
@@ -538,7 +540,7 @@ function bitsToValueSpecial(bits, format) {
     const expInt=parseInt(expBits,2);
     const manInt=manBits.length?parseInt(manBits,2):0;
 
-    // NaN / Inf
+    // ---------- NaN / Inf rules ----------
     if (name.includes("E5M2") && expInt===(1<<exp)-1) {
         if (manInt===0) return {value: sign*Infinity, calculationHtml:"Inf"};
         return {value:NaN, calculationHtml:"NaN"};
@@ -546,16 +548,15 @@ function bitsToValueSpecial(bits, format) {
     if (name.includes("E4M3") && expInt===(1<<exp)-1 && manInt===(1<<man)-1) {
         return {value:NaN, calculationHtml:"NaN"};
     }
-    if (name.includes("FP4") && bits==="1111") {
-        return {value:NaN, calculationHtml:"NaN"};
-    }
+    // ⚠️ FP4 没有 NaN → 删除错误判断！
 
+    // ---------- Zero ----------
     if (expInt===0 && manInt===0) {
         const val = sign<0?-0:0;
         return {value:val, calculationHtml:`${Object.is(val,-0)?"-0":"0"}`};
     }
 
-    // -------- Subnormal decode --------
+    // ---------- Subnormal ----------
     if (expInt===0 && manInt!==0) {
         let mantissa = manInt / Math.pow(2,man);
         let actualExp = 1 - bias;
@@ -563,7 +564,7 @@ function bitsToValueSpecial(bits, format) {
         return {value:val, calculationHtml:`subnorm: ${sign}×2^${actualExp}×${mantissa}=${val}`};
     }
 
-    // -------- Normal --------
+    // ---------- Normal ----------
     let mantissa = 1 + manInt / Math.pow(2,man);
     let actualExp = expInt - bias;
     let val = sign*mantissa*Math.pow(2,actualExp);
